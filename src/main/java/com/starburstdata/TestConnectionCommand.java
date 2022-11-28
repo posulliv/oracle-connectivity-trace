@@ -13,6 +13,7 @@
  */
 package com.starburstdata;
 
+import oracle.jdbc.OracleConnection;
 import picocli.CommandLine;
 
 import java.io.FileInputStream;
@@ -38,76 +39,57 @@ public class TestConnectionCommand
     @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "Show this help message and exit")
     public boolean usageHelpRequested;
 
-    @CommandLine.Option(names = "--oracle-config", required = true, description = "Properties file with Oracle connection config")
-    public String configFilename;
+    @CommandLine.Option(names = {"-u", "--user"}, required = true, description = "Oracle username")
+    public String user;
+
+    @CommandLine.Option(names = {"-p", "--password"}, required = true, description = "Oracle password")
+    public String password;
+
+    @CommandLine.Option(names = {"--jdbcUrl"}, required = true, description = "JDBC URL for Oracle connection")
+    public String jdbcUrl;
+
+    public static String DEFAULT_TIMEOUT = "10000";
 
     private TestConnectionCommand() {}
 
     @Override
     public void run()
     {
-        List<String> queries = getQueriesToRun();
         try {
             Connection connection = createJdbcConnection();
-            for (String query : queries) {
-                System.out.println("Query: " + query);
-                Statement statement = connection.createStatement();
-                long start = System.currentTimeMillis();
-                ResultSet resultSet = statement.executeQuery(query);
-                while (resultSet.next()) {
-                    System.out.print("  ");
-                    for (int i = 1; i <= resultSet.getMetaData().getColumnCount(); i++) {
-                        System.out.print(resultSet.getMetaData().getColumnName(i) + ", ");
-                    }
-                    for (int i = 1; i <= resultSet.getMetaData().getColumnCount(); i++) {
-                        String column;
-                        if (resultSet.getMetaData().getColumnType(i) == Types.DATE) {
-                            column = resultSet.getDate(i).toString();
-                        }
-                        else {
-                            column = resultSet.getString(i);
-                        }
-                        System.out.print(column + ",");
-                    }
-                    System.out.println("");
-                }
-                resultSet.close();
-                statement.close();
-                long end = System.currentTimeMillis();
-                System.out.println("  finished in " + (end - start) + " ms");
+            Statement statement = connection.createStatement();
+            long start = System.currentTimeMillis();
+            ResultSet resultSet = statement.executeQuery(getTestQuery());
+            while (resultSet.next()) {
+                System.out.println("sysdate: " + resultSet.getString(1));
             }
+            resultSet.close();
+            long end = System.currentTimeMillis();
+            System.out.println("finished in " + (end - start) + " ms");
+            statement.close();
             connection.close();
         }
         catch (Exception e)
         {
-            System.out.println("failure creating JDBC connection or executing query");
+            System.err.println("failure creating JDBC connection or executing query");
             e.printStackTrace();
+            System.exit(1);
         }
     }
 
-    private List<String> getQueriesToRun()
+    private static String getTestQuery()
     {
-        return new LinkedList<String>(Arrays.asList("SELECT sysdate FROM dual"));
+        return "SELECT sysdate FROM dual";
     }
 
     private Connection createJdbcConnection()
             throws SQLException, IOException
     {
-        Properties connectionProperties = getConnectionProperties(configFilename);
         Properties properties = new Properties();
-        /*properties.setProperty("user", connectionProperties.getProperty("user"));
-        properties.setProperty("password", connectionProperties.getProperty("password"));
-        properties.setProperty("SSL", "true");
-        properties.setProperty("SSLVerification", "NONE");*/
-        return DriverManager.getConnection(connectionProperties.getProperty("url"), properties);
-    }
-
-    private Properties getConnectionProperties(String configFile)
-            throws IOException
-    {
-        Properties props = new Properties();
-        props.load(new FileInputStream(configFile));
-        return props;
+        properties.setProperty("user", user);
+        properties.setProperty("password", password);
+        properties.setProperty(OracleConnection.CONNECTION_PROPERTY_THIN_NET_CONNECT_TIMEOUT, DEFAULT_TIMEOUT);
+        return DriverManager.getConnection(jdbcUrl, properties);
     }
 }
 
