@@ -34,7 +34,7 @@ import java.util.Properties;
         usageHelpAutoWidth = true
 )
 public class TestConnectionCommand
-        implements Runnable
+        implements Runnable, CommandLine.IExitCodeGenerator
 {
     @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "Show this help message and exit")
     public boolean usageHelpRequested;
@@ -49,6 +49,8 @@ public class TestConnectionCommand
     public String jdbcUrl;
 
     public static String DEFAULT_TIMEOUT = "10000";
+
+    private int exitCode = 0;
 
     private TestConnectionCommand() {}
 
@@ -73,8 +75,14 @@ public class TestConnectionCommand
         {
             System.err.println("failure creating JDBC connection or executing query");
             e.printStackTrace();
-            System.exit(1);
+            exitCode = 1;
         }
+    }
+
+    @Override
+    public int getExitCode()
+    {
+        return exitCode;
     }
 
     private static String getTestQuery()
